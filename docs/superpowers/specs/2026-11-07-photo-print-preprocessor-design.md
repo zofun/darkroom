@@ -54,7 +54,7 @@ v1 聚焦三件事：
 | 前端 | **React + TypeScript + Vite** | 复杂界面与未来排版编辑器的生产力 |
 | 状态 | **Zustand** | 轻量、易测 |
 | 样式 | 手写 CSS + 设计令牌（暗房色板） | 保证设计感，不引重型 UI 库 |
-| 图像编解码 | `image`（JPEG/PNG）、`libheif-rs`（HEIC，随包附带原生库） | 覆盖率好 |
+| 图像编解码 | `image`（JPEG/PNG）、Windows Imaging Component（HEIC/HEIF，走系统编解码器） | 覆盖率高，HEIC 无需随包原生库 |
 | 缩放 | `fast_image_resize`（Lanczos3 + SIMD） | 高质量、高性能 |
 | EXIF | `kamadak-exif` | 解析时间、GPS、朝向 |
 | 并行 | `rayon` | 批处理吞吐 |
@@ -116,7 +116,7 @@ type SizePreset = "5寸" | "6寸" | "7寸" | "custom";
 
 interface PrintSize {
   preset: SizePreset;
-  widthMm: number;   // 5寸: 89 × 127, 6寸: 102 × 152, 7寸: 127 × 178
+  widthMm: number;   // 5寸: 88.9 × 127.0, 6寸: 101.6 × 152.4, 7寸: 127.0 × 177.8（界面按整数 mm 显示）
   heightMm: number;
   dpi: number;       // 默认 300
 }
@@ -346,5 +346,5 @@ photo-maker/
 - 仅 Windows 10/11 桌面端。
 - 离线运行（除首次安装外无需网络）。
 - 用户可接受地名精度到「市/区」，具体景点名可手动补充。
-- HEIC 解码依赖随包分发的 libheif 原生库。
+- HEIC 解码使用 Windows 系统 HEIF 编解码器（Win11 内置；Win10 需安装 HEIF 图像扩展）；不可用时给出明确提示，不影响 JPEG/PNG。
 - 内置字体使用 OFL 许可的思源宋体，可再分发。

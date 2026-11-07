@@ -1,0 +1,17 @@
+:root {
+  --bg: #141416;
+  --bg-deep: #0e0e10;
+  --panel: #1b1b1e;
+  --panel-2: #161618;
+  --line: #2a2a2e;
+  --line-soft: #222225;
+  --paper: #e8e2d6;
+  --muted: #8a8578;
+  --faint: #5f5b52;
+  --gold: #c8a96a;
+  --gold-dim: #8a7448;
+  --danger: #c86a5a;
+  --success: #7fae76;
+  --serif: Georgia, "Songti SC", "STSong", "SimSun", serif;
+  --sans: "Segoe UI", system-ui, sans-serif;
+}
