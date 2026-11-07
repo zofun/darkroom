@@ -28,6 +28,7 @@ pub fn run() {
             commands::make_proxy,
             commands::render_preview,
             commands::build_watermark_svg,
+            commands::demo_config,
             commands::cancel,
             commands::export_batch,
         ])

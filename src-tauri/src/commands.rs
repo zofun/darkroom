@@ -38,6 +38,31 @@ pub struct ExportProgress {
     pub failed: usize,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DemoConfig {
+    pub dir: Option<String>,
+    pub view: Option<String>,
+    pub style: Option<String>,
+    pub readability: Option<String>,
+    pub date: Option<String>,
+    pub place: Option<String>,
+}
+
+/// 仅用于截图/演示：所有值来自环境变量，正常启动时全部为空。
+#[tauri::command]
+pub fn demo_config() -> DemoConfig {
+    let read = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+    DemoConfig {
+        dir: read("DARKROOM_DEMO_DIR"),
+        view: read("DARKROOM_DEMO_VIEW"),
+        style: read("DARKROOM_DEMO_STYLE"),
+        readability: read("DARKROOM_DEMO_READABILITY"),
+        date: read("DARKROOM_DEMO_DATE"),
+        place: read("DARKROOM_DEMO_PLACE"),
+    }
+}
+
 fn encode_jpeg_data_url(img: &RgbaImage, quality: u8) -> Result<String, String> {
     let rgb = image::DynamicImage::ImageRgba8(img.clone()).to_rgb8();
     let mut buf: Vec<u8> = Vec::new();

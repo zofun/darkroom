@@ -24,4 +24,13 @@ export const api = {
     outDir: string
   ) => invoke<string[]>("export_batch", { items, settings, outDir }),
   cancel: () => invoke<void>("cancel"),
+  demoConfig: () =>
+    invoke<{
+      dir?: string;
+      view?: string;
+      style?: string;
+      readability?: string;
+      date?: string;
+      place?: string;
+    }>("demo_config"),
 };

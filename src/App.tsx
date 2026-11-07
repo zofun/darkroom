@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { DEFAULT_FOCUS, useAppStore } from "./store/useAppStore";
@@ -7,7 +7,7 @@ import { FilmStrip } from "./components/FilmStrip";
 import { CanvasPreview } from "./components/CanvasPreview";
 import { CropEditor } from "./components/CropEditor";
 import { Inspector } from "./components/Inspector";
-import type { ExportProgress, Photo } from "./types";
+import type { ExportProgress, Photo, WatermarkStyle } from "./types";
 
 function baseName(p: string) {
   const parts = p.replace(/\\/g, "/").split("/");
@@ -126,9 +126,7 @@ export default function App() {
     };
   }, [selected, settings, resolved, effectiveDate, effectivePlace, focus]);
 
-  const handleImport = async () => {
-    const dir = await api.pickFolder();
-    if (!dir) return;
+  const importFrom = useCallback(async (dir: string) => {
     setFolder(dir);
     setImporting(true);
     setImportCount(0);
@@ -198,7 +196,42 @@ export default function App() {
     } finally {
       setImporting(false);
     }
+  }, [setPhotos]);
+
+  const handleImport = async () => {
+    const dir = await api.pickFolder();
+    if (dir) await importFrom(dir);
   };
+
+  const demoRan = useRef(false);
+  useEffect(() => {
+    if (demoRan.current) return;
+    demoRan.current = true;
+    api
+      .demoConfig()
+      .then(async (cfg) => {
+        if (cfg.style) setWatermark({ style: cfg.style as WatermarkStyle });
+        if (cfg.readability)
+          setWatermark({
+            readability: cfg.readability as "none" | "shadow" | "plate",
+          });
+        if (cfg.view === "crop") setView("crop");
+        if (cfg.dir) {
+          await importFrom(cfg.dir);
+          if (cfg.date || cfg.place) {
+            const photosNow = useAppStore.getState().photos;
+            photosNow.forEach((p) => {
+              useAppStore.getState().updatePhoto(p.id, {
+                overrideDate: cfg.date,
+                overridePlace: cfg.place,
+              });
+            });
+          }
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importFrom, setWatermark]);
 
   const handleExport = async () => {
     if (photos.length === 0) return;
