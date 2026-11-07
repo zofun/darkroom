@@ -25,6 +25,7 @@ pub fn run() {
             commands::list_photos,
             commands::read_photo_meta,
             commands::make_thumb,
+            commands::make_proxy,
             commands::render_preview,
             commands::build_watermark_svg,
             commands::cancel,

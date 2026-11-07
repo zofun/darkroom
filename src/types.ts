@@ -17,6 +17,7 @@ export interface WatermarkConfig {
   dateFormat: string;
   font: string;
   colorToken: string;
+  readability: "none" | "shadow" | "plate";
   scale: number;
   position: WmPosition;
 }
@@ -56,6 +57,7 @@ export interface Photo {
   overrideDate?: string;
   overridePlace?: string;
   overrideCrop?: CropMode;
+  cropFocus?: [number, number];
 }
 
 export interface BatchItem {

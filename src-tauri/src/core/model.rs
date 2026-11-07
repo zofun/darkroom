@@ -43,6 +43,7 @@ pub struct WatermarkConfig {
     pub date_format: String,
     pub font: String,
     pub color_token: String,
+    pub readability: String,
     pub scale: f32,
     pub position: WmPosition,
 }
@@ -57,6 +58,7 @@ impl Default for WatermarkConfig {
             date_format: "YYYY · M月".into(),
             font: "Songti".into(),
             color_token: "warm".into(),
+            readability: "none".into(),
             scale: 1.0,
             position: WmPosition::Bl,
         }

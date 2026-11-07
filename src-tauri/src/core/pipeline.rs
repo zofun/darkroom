@@ -43,6 +43,11 @@ fn apply_orientation(img: RgbaImage, orientation: u16) -> RgbaImage {
     }
 }
 
+/// 解码并按 EXIF 朝向旋正，供预览/裁切代理图与导出共用。
+pub fn load_oriented(input: &Path, orientation: u16) -> Result<RgbaImage, String> {
+    Ok(apply_orientation(decode_image(input)?, orientation))
+}
+
 fn render_overlay(
     w: u32,
     h: u32,
@@ -91,15 +96,15 @@ pub fn compose(
     date: &str,
     place: &str,
     orientation: u16,
+    focus: (f32, f32),
 ) -> Result<RgbaImage, String> {
-    let source = decode_image(input)?;
-    let source = apply_orientation(source, orientation);
+    let source = load_oriented(input, orientation)?;
     let (tw, th) = s.size.pixels();
 
     let mut canvas: RgbaImage = match s.crop_mode {
         CropMode::Fill => {
             let (x, y, cw, ch) =
-                geometry::fill_rect(source.width(), source.height(), tw, th, (0.5, 0.5));
+                geometry::fill_rect(source.width(), source.height(), tw, th, focus);
             let cropped = imageops::crop_imm(&source, x, y, cw, ch).to_image();
             imageops::resize(&cropped, tw, th, imageops::FilterType::Lanczos3)
         }
@@ -137,8 +142,9 @@ pub fn process(
     date: &str,
     place: &str,
     orientation: u16,
+    focus: (f32, f32),
 ) -> Result<(), String> {
-    let final_img = compose(input, s, date, place, orientation)?;
+    let final_img = compose(input, s, date, place, orientation, focus)?;
 
     if s.format == "png" {
         final_img.save(output).map_err(|e| format!("编码失败: {e}"))?;
@@ -200,10 +206,46 @@ mod tests {
         img.save(&input).unwrap();
 
         let output = dir.path().join("out.png");
-        process(&input, &output, &settings(), "2024 · 六月", "杭州市", 1).unwrap();
+        process(
+            &input,
+            &output,
+            &settings(),
+            "2024 · 六月",
+            "杭州市",
+            1,
+            (0.5, 0.5),
+        )
+        .unwrap();
 
         let out = image::open(&output).unwrap().to_rgba8();
         assert_eq!(out.dimensions(), (1200, 1800));
+    }
+
+    #[test]
+    fn focus_changes_crop_region() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("in.png");
+        let mut img = RgbaImage::new(3000, 2000);
+        for (x, _y, p) in img.enumerate_pixels_mut() {
+            *p = if x < 1500 {
+                Rgba([230, 20, 20, 255])
+            } else {
+                Rgba([20, 20, 230, 255])
+            };
+        }
+        img.save(&input).unwrap();
+
+        let left_out = dir.path().join("left.png");
+        process(&input, &left_out, &settings(), "", "", 1, (0.0, 0.5)).unwrap();
+        let right_out = dir.path().join("right.png");
+        process(&input, &right_out, &settings(), "", "", 1, (1.0, 0.5)).unwrap();
+
+        let left = image::open(&left_out).unwrap().to_rgba8();
+        let right = image::open(&right_out).unwrap().to_rgba8();
+        let lp = left.get_pixel(10, 900);
+        let rp = right.get_pixel(10, 900);
+        assert!(lp.0[0] > 180 && lp.0[2] < 80, "left crop should be red: {lp:?}");
+        assert!(rp.0[2] > 180 && rp.0[0] < 80, "right crop should be blue: {rp:?}");
     }
 
     #[test]
@@ -220,7 +262,7 @@ mod tests {
         s.format = "jpeg".into();
         s.quality = 90;
         let output = dir.path().join("out.jpg");
-        process(&input, &output, &s, "2024 · 六月", "杭州市", 1).unwrap();
+        process(&input, &output, &s, "2024 · 六月", "杭州市", 1, (0.5, 0.5)).unwrap();
 
         assert!(output.exists());
         assert!(std::fs::metadata(&output).unwrap().len() > 1000);
@@ -244,7 +286,7 @@ mod tests {
         s.border_enabled = true;
         s.border_color = [255, 0, 0];
         let output = dir.path().join("out.png");
-        process(&input, &output, &s, "", "", 1).unwrap();
+        process(&input, &output, &s, "", "", 1, (0.5, 0.5)).unwrap();
 
         let out = image::open(&output).unwrap().to_rgba8();
         let top = out.get_pixel(600, 300);

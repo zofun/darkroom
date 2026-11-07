@@ -119,10 +119,21 @@ pub fn read_photo_meta(state: tauri::State<AppState>, path: String) -> PhotoMeta
 }
 
 #[tauri::command]
-pub fn make_thumb(path: String, max: u32) -> Result<String, String> {
-    let img = pipeline::decode_image(Path::new(&path))?;
+pub fn make_thumb(path: String, max: u32, orientation: u16) -> Result<String, String> {
+    let img = pipeline::load_oriented(Path::new(&path), orientation)?;
     let thumb = imageops::thumbnail(&img, max, max);
     encode_jpeg_data_url(&thumb, 78)
+}
+
+#[tauri::command]
+pub fn make_proxy(path: String, orientation: u16, max: u32) -> Result<String, String> {
+    let img = pipeline::load_oriented(Path::new(&path), orientation)?;
+    let longest = img.width().max(img.height()).max(1);
+    let scale = (max as f32 / longest as f32).min(1.0);
+    let w = ((img.width() as f32 * scale).round() as u32).max(1);
+    let h = ((img.height() as f32 * scale).round() as u32).max(1);
+    let small = imageops::resize(&img, w, h, imageops::FilterType::Triangle);
+    encode_jpeg_data_url(&small, 86)
 }
 
 #[tauri::command]
@@ -133,8 +144,9 @@ pub fn render_preview(
     place: String,
     orientation: u16,
     max_dim: u32,
+    focus: (f32, f32),
 ) -> Result<String, String> {
-    let img = pipeline::compose(Path::new(&path), &settings, &date, &place, orientation)?;
+    let img = pipeline::compose(Path::new(&path), &settings, &date, &place, orientation, focus)?;
     let longest = img.width().max(img.height()).max(1);
     let scale = (max_dim as f32 / longest as f32).min(1.0);
     let w = ((img.width() as f32 * scale).round() as u32).max(1);

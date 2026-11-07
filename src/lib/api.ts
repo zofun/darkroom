@@ -5,8 +5,10 @@ export const api = {
   pickFolder: () => invoke<string | null>("pick_folder"),
   listPhotos: (dir: string) => invoke<string[]>("list_photos", { dir }),
   readMeta: (path: string) => invoke<PhotoMeta>("read_photo_meta", { path }),
-  makeThumb: (path: string, max: number) =>
-    invoke<string>("make_thumb", { path, max }),
+  makeThumb: (path: string, max: number, orientation: number) =>
+    invoke<string>("make_thumb", { path, max, orientation }),
+  makeProxy: (path: string, orientation: number, max: number) =>
+    invoke<string>("make_proxy", { path, orientation, max }),
   renderPreview: (args: {
     path: string;
     settings: ResolvedSettings;
@@ -14,6 +16,7 @@ export const api = {
     place: string;
     orientation: number;
     maxDim: number;
+    focus: [number, number];
   }) => invoke<string>("render_preview", args),
   exportBatch: (
     items: BatchItem[],

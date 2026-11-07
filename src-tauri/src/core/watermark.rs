@@ -1,7 +1,7 @@
 use crate::core::model::{WatermarkConfig, WatermarkStyle};
 use std::fmt::Write;
 
-fn color(cfg: &WatermarkConfig) -> &'static str {
+fn base_color(cfg: &WatermarkConfig) -> &'static str {
     match cfg.color_token.as_str() {
         "gold" => "#c8a96a",
         "paper" => "#e8e2d6",
@@ -24,7 +24,13 @@ pub fn build_svg(w: u32, h: u32, cfg: &WatermarkConfig, date: &str, place: &str)
     let scale = cfg.scale.max(0.1) as f64;
     let date_size = unit * 0.045 * scale;
     let place_size = unit * 0.026 * scale;
-    let c = color(cfg);
+    let plate = cfg.readability == "plate";
+    let shadow = cfg.readability == "shadow";
+
+    let mut c = base_color(cfg);
+    if plate && cfg.color_token == "ink" {
+        c = "#f4e8ca";
+    }
     let font = &cfg.font;
     let d = if cfg.show_date {
         esc(date)
@@ -37,34 +43,60 @@ pub fn build_svg(w: u32, h: u32, cfg: &WatermarkConfig, date: &str, place: &str)
         String::new()
     };
 
+    let stroke = if plate {
+        format!(
+            " stroke='#050505' stroke-opacity='0.5' stroke-width='{:.2}' paint-order='stroke'",
+            (unit * 0.0028).max(1.0)
+        )
+    } else {
+        String::new()
+    };
+
+    // 估算文字块宽度，用于压暗底板，避免裁掉文字。
+    let chars = d.chars().count().max(p.chars().count()) as f64;
+    let approx_w = (chars * date_size + unit * 0.04).min(fw * 0.62);
+
     let mut body = String::new();
     match cfg.style {
         WatermarkStyle::Engraved => {
             let x = fw * 0.94;
             let y = fh * 0.90;
+            let lx = x - fw * 0.06;
+            let ly = y + date_size * 0.55;
+            let py = y + date_size * 0.55 + place_size * 1.4;
+            if plate {
+                let rx2 = x + unit * 0.012;
+                let _ = write!(
+                    body,
+                    r#"<rect x='{rx1}' y='{ry1}' width='{rw}' height='{rh}' rx='{r}' fill='#08080a' fill-opacity='0.45'/>"#,
+                    rx1 = rx2 - approx_w,
+                    ry1 = y - date_size * 1.15,
+                    rw = approx_w,
+                    rh = (py + place_size * 0.7) - (y - date_size * 1.15),
+                    r = unit * 0.008,
+                );
+            }
             let _ = write!(
                 body,
                 r#"<g class='wm-engraved' text-anchor='end'>
-                <text x='{x}' y='{y}' font-family='{font}' font-size='{date_size}' fill='{c}'>{d}</text>
+                <text x='{x}' y='{y}' font-family='{font}' font-size='{date_size}' fill='{c}'{stroke}>{d}</text>
                 <line x1='{lx}' y1='{ly}' x2='{x}' y2='{ly}' stroke='{c}' stroke-width='{sw}'/>
-                <text x='{x}' y='{py}' font-family='{font}' font-size='{place_size}' letter-spacing='{ls}' fill='{c}'>{p}</text>
+                <text x='{x}' y='{py}' font-family='{font}' font-size='{place_size}' letter-spacing='{ls}' fill='{c}'{stroke}>{p}</text>
                 </g>"#,
-                lx = x - fw * 0.06,
-                ly = y + date_size * 0.55,
                 sw = (unit * 0.0015).max(1.0),
-                py = y + date_size * 0.55 + place_size * 1.4,
                 ls = place_size * 0.28,
             );
         }
         WatermarkStyle::Siderail => {
             let band = fw * 0.06;
             let rx = fw - band;
+            let opacity = if plate { 0.8 } else { 0.55 };
             let _ = write!(
                 body,
                 r#"<g class='wm-siderail'>
-                <rect x='{rx}' y='0' width='{band}' height='{fh}' fill='rgba(10,10,12,0.55)'/>
+                <rect x='{rx}' y='0' width='{band}' height='{fh}' fill='rgba(10,10,12,{opacity})'/>
                 <line x1='{rx}' y1='0' x2='{rx}' y2='{fh}' stroke='{c}' stroke-width='{sw}'/>
-                <text x='{tx}' y='{ty}' transform='rotate(-90 {tx} {ty})' font-family='{font}' font-size='{date_size}' letter-spacing='{ls}' fill='{c}'>{d} {p}</text>
+                <text x='{tx}' y='{ty}' transform='rotate(-90 {tx} {ty})' font-family='{font}' font-size='{date_size}' letter-spacing='{ls}' fill='{c}'{stroke}>{d} {p}</text>
                 </g>"#,
                 sw = (unit * 0.0015).max(1.0),
                 tx = fw - band * 0.65,
@@ -75,17 +107,28 @@ pub fn build_svg(w: u32, h: u32, cfg: &WatermarkConfig, date: &str, place: &str)
         WatermarkStyle::Cornernote => {
             let x = fw * 0.05;
             let y = fh * 0.94;
+            let tx = x + unit * 0.02;
+            if plate {
+                let _ = write!(
+                    body,
+                    r#"<rect x='{rx1}' y='{ry1}' width='{rw}' height='{rh}' rx='{r}' fill='#08080a' fill-opacity='0.45'/>"#,
+                    rx1 = x - unit * 0.012,
+                    ry1 = y - date_size * 1.2,
+                    rw = approx_w,
+                    rh = (y + place_size * 1.9) - (y - date_size * 1.2),
+                    r = unit * 0.008,
+                );
+            }
             let _ = write!(
                 body,
                 r#"<g class='wm-cornernote'>
                 <circle cx='{dotx}' cy='{doty}' r='{r}' fill='{c}'/>
-                <text x='{tx}' y='{ty}' font-family='{font}' font-size='{ds}' font-weight='600' fill='{c}'>{d}</text>
-                <text x='{tx}' y='{py}' font-family='{font}' font-size='{ps}' letter-spacing='{ls}' fill='{c}'>{p}</text>
+                <text x='{tx}' y='{ty}' font-family='{font}' font-size='{ds}' font-weight='600' fill='{c}'{stroke}>{d}</text>
+                <text x='{tx}' y='{py}' font-family='{font}' font-size='{ps}' letter-spacing='{ls}' fill='{c}'{stroke}>{p}</text>
                 </g>"#,
                 dotx = x + unit * 0.006,
                 doty = y - date_size * 0.3,
                 r = unit * 0.004,
-                tx = x + unit * 0.02,
                 ty = y,
                 ds = date_size,
                 py = y + place_size * 1.5,
@@ -95,16 +138,17 @@ pub fn build_svg(w: u32, h: u32, cfg: &WatermarkConfig, date: &str, place: &str)
         }
         WatermarkStyle::Footerband => {
             let band = fh * 0.09;
+            let top = if plate { 0.88 } else { 0.72 };
             let _ = write!(
                 body,
                 r#"<g class='wm-footerband'>
                 <defs><linearGradient id='fade' x1='0' y1='1' x2='0' y2='0'>
-                <stop offset='0' stop-color='#08080a' stop-opacity='0.72'/>
+                <stop offset='0' stop-color='#08080a' stop-opacity='{top}'/>
                 <stop offset='1' stop-color='#08080a' stop-opacity='0'/>
                 </linearGradient></defs>
                 <rect x='0' y='{ry}' width='{fw}' height='{band}' fill='url(#fade)'/>
-                <text x='{lx}' y='{ty}' font-family='{font}' font-size='{ds}' fill='{c}'>{d}</text>
-                <text x='{rx}' y='{ty}' text-anchor='end' font-family='{font}' font-size='{ps}' letter-spacing='{ls}' fill='{c}'>{p}</text>
+                <text x='{lx}' y='{ty}' font-family='{font}' font-size='{ds}' fill='{c}'{stroke}>{d}</text>
+                <text x='{rx}' y='{ty}' text-anchor='end' font-family='{font}' font-size='{ps}' letter-spacing='{ls}' fill='{c}'{stroke}>{p}</text>
                 </g>"#,
                 ry = fh - band,
                 lx = fw * 0.05,
@@ -117,8 +161,20 @@ pub fn build_svg(w: u32, h: u32, cfg: &WatermarkConfig, date: &str, place: &str)
         }
     }
 
+    let content = if shadow {
+        format!(
+            r#"<defs><filter id='wm-shadow' x='-20%' y='-20%' width='140%' height='140%'>
+            <feDropShadow dx='0' dy='{dy}' stdDeviation='{blur}' flood-color='#050505' flood-opacity='0.72'/>
+            </filter></defs><g filter='url(#wm-shadow)'>{body}</g>"#,
+            dy = unit * 0.0015,
+            blur = unit * 0.004,
+        )
+    } else {
+        body
+    };
+
     format!(
-        r#"<svg xmlns='http://www.w3.org/2000/svg' width='{w}' height='{h}' viewBox='0 0 {w} {h}'>{body}</svg>"#
+        r#"<svg xmlns='http://www.w3.org/2000/svg' width='{w}' height='{h}' viewBox='0 0 {w} {h}'>{content}</svg>"#
     )
 }
 
@@ -169,5 +225,22 @@ mod tests {
         let svg = build_svg(1200, 1800, &c, "SECRET_DATE", "杭州市");
         assert!(!svg.contains("SECRET_DATE"));
         assert!(svg.contains("杭州市"));
+    }
+
+    #[test]
+    fn plate_mode_adds_scrim_and_stroke() {
+        let mut c = cfg(WatermarkStyle::Cornernote);
+        c.readability = "plate".into();
+        let svg = build_svg(1200, 1800, &c, "2024 · 六月", "杭州市");
+        assert!(svg.contains("fill-opacity='0.45'"));
+        assert!(svg.contains("paint-order='stroke'"));
+    }
+
+    #[test]
+    fn shadow_mode_adds_drop_shadow() {
+        let mut c = cfg(WatermarkStyle::Engraved);
+        c.readability = "shadow".into();
+        let svg = build_svg(1200, 1800, &c, "2024 · 六月", "杭州市");
+        assert!(svg.contains("feDropShadow"));
     }
 }

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useAppStore } from "./store/useAppStore";
+import { DEFAULT_FOCUS, useAppStore } from "./store/useAppStore";
 import { api } from "./lib/api";
 import { FilmStrip } from "./components/FilmStrip";
 import { CanvasPreview } from "./components/CanvasPreview";
+import { CropEditor } from "./components/CropEditor";
 import { Inspector } from "./components/Inspector";
 import type { ExportProgress, Photo } from "./types";
 
@@ -40,6 +41,8 @@ export default function App() {
   const resolved = useAppStore((s) => s.resolved);
   const effectiveDate = useAppStore((s) => s.effectiveDate);
   const effectivePlace = useAppStore((s) => s.effectivePlace);
+  const effectiveFocus = useAppStore((s) => s.effectiveFocus);
+  const updatePhoto = useAppStore((s) => s.updatePhoto);
   const sizeLabel = useAppStore((s) => s.sizeLabel);
 
   const [folder, setFolder] = useState("");
@@ -51,6 +54,8 @@ export default function App() {
   const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [message, setMessage] = useState("就绪");
   const [messageKind, setMessageKind] = useState<"ok" | "bad" | "">("ok");
+  const [view, setView] = useState<"result" | "crop">("result");
+  const [proxy, setProxy] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const un = listen<ExportProgress>("export-progress", (e) =>
@@ -62,6 +67,30 @@ export default function App() {
   }, []);
 
   const selected = photos.find((p) => p.id === selectedId);
+  const focus = selected ? effectiveFocus(selected.id) : DEFAULT_FOCUS;
+
+  useEffect(() => {
+    if (settings.cropMode === "fit") setView("result");
+  }, [settings.cropMode]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!selected) {
+      setProxy(undefined);
+      return;
+    }
+    setProxy(undefined);
+    api
+      .makeProxy(selected.path, selected.orientation, 1500)
+      .then((d) => {
+        if (alive) setProxy(d);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.path, selected?.orientation]);
 
   useEffect(() => {
     let alive = true;
@@ -79,6 +108,7 @@ export default function App() {
           place: effectivePlace(selected.id),
           orientation: selected.orientation,
           maxDim: 1100,
+          focus,
         });
         if (alive) setPreview(data);
       } catch (err) {
@@ -94,7 +124,7 @@ export default function App() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [selected, settings, resolved, effectiveDate, effectivePlace]);
+  }, [selected, settings, resolved, effectiveDate, effectivePlace, focus]);
 
   const handleImport = async () => {
     const dir = await api.pickFolder();
@@ -134,7 +164,7 @@ export default function App() {
           }
           let thumb: string | undefined;
           try {
-            thumb = await api.makeThumb(path, 260);
+            thumb = await api.makeThumb(path, 260, meta.orientation ?? 1);
           } catch {
             thumb = undefined;
           }
@@ -185,6 +215,7 @@ export default function App() {
       place: effectivePlace(p.id),
       orientation: p.orientation,
       sizeLabel: sizeLabel(),
+      cropFocus: effectiveFocus(p.id),
     }));
     setExporting(true);
     setProgress(null);
@@ -210,6 +241,15 @@ export default function App() {
   const handleCancel = () => {
     api.cancel();
   };
+
+  const size = resolved(selected?.id ?? null).size;
+  const targetW = Math.round((size.widthMm / 25.4) * size.dpi);
+  const targetH = Math.round((size.heightMm / 25.4) * size.dpi);
+  const targetAR = size.widthMm / size.heightMm;
+  const oriented =
+    selected && selected.orientation >= 5 && selected.orientation <= 8
+      ? { w: selected.height, h: selected.width }
+      : { w: selected?.width ?? 0, h: selected?.height ?? 0 };
 
   return (
     <div className="app">
@@ -268,7 +308,22 @@ export default function App() {
         <FilmStrip />
 
         <main className="canvas">
-          <CanvasPreview preview={preview} loading={previewLoading} />
+          {view === "crop" && settings.cropMode === "fill" && selected ? (
+            <CropEditor
+              proxy={proxy}
+              targetAR={targetAR}
+              targetW={targetW}
+              targetH={targetH}
+              sourceW={oriented.w}
+              sourceH={oriented.h}
+              focus={focus}
+              onFocus={(x, y) =>
+                updatePhoto(selected.id, { cropFocus: [x, y] })
+              }
+            />
+          ) : (
+            <CanvasPreview preview={preview} loading={previewLoading} />
+          )}
           <div className="toolbar">
             <span className="tool-label">尺寸</span>
             {(["5", "6", "7"] as const).map((k) => (
@@ -289,6 +344,22 @@ export default function App() {
               自定义
             </button>
             <div className="spacer" />
+            {settings.cropMode === "fill" && selected && (
+              <span className="seg" style={{ width: 120, marginRight: 10 }}>
+                <button
+                  className={view === "result" ? "on" : ""}
+                  onClick={() => setView("result")}
+                >
+                  成品
+                </button>
+                <button
+                  className={view === "crop" ? "on" : ""}
+                  onClick={() => setView("crop")}
+                >
+                  裁切
+                </button>
+              </span>
+            )}
             <ToolToggle
               on={settings.watermark.showDate}
               onClick={() =>

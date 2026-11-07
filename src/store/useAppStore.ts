@@ -73,6 +73,8 @@ export function sizeMm(
   }
 }
 
+export const DEFAULT_FOCUS: [number, number] = [0.5, 0.5];
+
 const defaultWatermark: WatermarkConfig = {
   style: "cornernote",
   showDate: true,
@@ -81,6 +83,7 @@ const defaultWatermark: WatermarkConfig = {
   dateFormat: "YYYY · M月",
   font: "Songti",
   colorToken: "warm",
+  readability: "none",
   scale: 1,
   position: "bl",
 };
@@ -112,6 +115,7 @@ interface AppState {
   effectiveDate: (id: string) => string;
   effectivePlace: (id: string) => string;
   effectiveCrop: (id: string) => CropMode;
+  effectiveFocus: (id: string) => [number, number];
   resolved: (id: string | null) => ResolvedSettings;
   sizeLabel: () => string;
 }
@@ -176,6 +180,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   effectiveCrop: (id) => {
     const p = get().photos.find((x) => x.id === id);
     return p?.overrideCrop ?? get().settings.cropMode;
+  },
+
+  effectiveFocus: (id) => {
+    const p = get().photos.find((x) => x.id === id);
+    return p?.cropFocus ?? DEFAULT_FOCUS;
   },
 
   resolved: (id) => {

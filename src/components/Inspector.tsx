@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useAppStore } from "../store/useAppStore";
+import { prettyDate, useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
 import type { CropMode, WatermarkStyle } from "../types";
 
@@ -160,6 +160,22 @@ export function Inspector({
           />
         </div>
         <div className="row">
+          <span className="k">日历</span>
+          <input
+            type="date"
+            className="field"
+            disabled={!hasSelection}
+            style={{ colorScheme: "dark" }}
+            onChange={(e) =>
+              selected &&
+              e.target.value &&
+              updatePhoto(selected.id, {
+                overrideDate: prettyDate(e.target.value),
+              })
+            }
+          />
+        </div>
+        <div className="row">
           <span className="k">位置</span>
           <input
             className="field"
@@ -227,6 +243,20 @@ export function Inspector({
                 style={{ background: c.hex }}
                 onClick={() => setWatermark({ colorToken: c.token })}
               />
+            ))}
+          </span>
+        </div>
+        <div className="row">
+          <span className="k">可读性</span>
+          <span className="seg" style={{ width: 150 }}>
+            {(["none", "shadow", "plate"] as const).map((m) => (
+              <button
+                key={m}
+                className={settings.watermark.readability === m ? "on" : ""}
+                onClick={() => setWatermark({ readability: m })}
+              >
+                {m === "none" ? "关" : m === "shadow" ? "阴影" : "底板"}
+              </button>
             ))}
           </span>
         </div>

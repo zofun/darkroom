@@ -14,6 +14,7 @@ pub struct BatchItem {
     pub place: String,
     pub orientation: u16,
     pub size_label: String,
+    pub crop_focus: (f32, f32),
 }
 
 #[derive(Clone, Debug)]
@@ -70,6 +71,7 @@ where
                 &item.date,
                 &item.place,
                 item.orientation,
+                item.crop_focus,
             );
             if result.is_err() {
                 failed.fetch_add(1, Ordering::Relaxed);
@@ -133,6 +135,7 @@ mod tests {
                 place: "杭州市".into(),
                 orientation: 1,
                 size_label: "6寸".into(),
+                crop_focus: (0.5, 0.5),
             });
         }
         let out = dir.path().join("out");
